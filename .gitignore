@@ -1,11 +1,16 @@
-# Ignore virtual environment directories
 .venv/
-
-# Ignore Python bytecode files
 __pycache__/
-
-# Environment variable files and sensitive configuration files
+*.py[cod]
 .env
-
-#IDE specific files
+.env.*
+!.env.example
 .vscode/
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+*.log
+.uv-cache/
+.pnpm-store/
+.pytest_cache/
+.DS_Store
