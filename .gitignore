@@ -14,3 +14,4 @@ out/
 .pnpm-store/
 .pytest_cache/
 .DS_Store
+docs/ai-engineer-tracker.xlsx
