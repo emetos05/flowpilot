@@ -1,6 +1,29 @@
 services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: flowpilot
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-flowpilot-local}
+      POSTGRES_DB: flowpilot
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flowpilot -d flowpilot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
   api:
     build: ./apps/api
+    env_file:
+      - path: ./apps/api/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://flowpilot:${POSTGRES_PASSWORD:-flowpilot-local}@db:5432/flowpilot
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     healthcheck:
@@ -24,3 +47,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
+
+volumes:
+  postgres_data:

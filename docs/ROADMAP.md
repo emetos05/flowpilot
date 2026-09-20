@@ -62,33 +62,33 @@ Status values: `Not Started`, `In Progress`, `Blocked`, `Complete`.
 
 - Date: September 15, 2026
 - Time budget: 2 hours
-- Status: **Not Started**
+- Status: **Complete**
 - Priority: Critical
 - Skills: repository design, Next.js, FastAPI, Docker
 
 Tasks:
 
-- [ ] Inspect the existing repository and any `AGENTS.md` instructions.
-- [ ] Create a monorepo with `apps/web` for Next.js, TypeScript and App Router.
-- [ ] Create `apps/api` for FastAPI and Python.
-- [ ] Add `GET /health` with a simple JSON health response.
-- [ ] Connect the frontend to the backend health endpoint.
-- [ ] Add development Dockerfiles and a root `docker-compose.yml`.
-- [ ] Add `.gitignore`, `.env.example` and the initial README.
-- [ ] Document the business problem, architecture, repository structure, local setup, Docker setup and environment variables.
-- [ ] Run both applications and fix errors within Day 1 scope.
+- [x] Inspect the existing repository and any `AGENTS.md` instructions.
+- [x] Create a monorepo with `apps/web` for Next.js, TypeScript and App Router.
+- [x] Create `apps/api` for FastAPI and Python.
+- [x] Add `GET /health` with a simple JSON health response.
+- [x] Connect the frontend to the backend health endpoint.
+- [x] Add development Dockerfiles and a root `docker-compose.yml`.
+- [x] Add `.gitignore`, `.env.example` and the initial README.
+- [x] Document the business problem, architecture, repository structure, local setup, Docker setup and environment variables.
+- [x] Run both applications and fix errors within Day 1 scope.
 
 Acceptance criteria:
 
-- [ ] The Next.js application starts successfully.
-- [ ] The FastAPI application starts successfully.
-- [ ] Calling `/health` directly returns a successful response.
-- [ ] The frontend visibly displays health data retrieved from FastAPI.
-- [ ] Browser requests succeed without a CORS or environment-variable error.
-- [ ] `docker compose up --build` starts both services successfully.
-- [ ] No secrets or generated dependency directories are tracked.
-- [ ] A new developer can follow the README to run the system.
-- [ ] The completion summary lists files changed, commands run, verification results and architectural decisions.
+- [x] The Next.js application starts successfully.
+- [x] The FastAPI application starts successfully.
+- [x] Calling `/health` directly returns a successful response.
+- [x] The frontend visibly displays health data retrieved from FastAPI.
+- [x] Browser requests succeed without a CORS or environment-variable error.
+- [x] `docker compose up --build` starts both services successfully.
+- [x] No secrets or generated dependency directories are tracked.
+- [x] A new developer can follow the README to run the system.
+- [x] The completion summary lists files changed, commands run, verification results and architectural decisions.
 
 Out of scope:
 
@@ -105,22 +105,22 @@ Deliverable: a public repository with both applications running locally, a verif
 
 - Date: September 16, 2026
 - Time budget: 2 hours
-- Status: **Not Started**
+- Status: **Complete**
 - Priority: Critical
 
 Tasks:
 
-- [ ] Implement FastAPI `POST /agent/run`.
-- [ ] Add the OpenAI integration behind a service interface.
-- [ ] Use Pydantic schemas for request and structured model output.
-- [ ] Persist `agent_run` records in PostgreSQL.
+- [x] Implement FastAPI `POST /agent/run`.
+- [x] Add the OpenAI integration behind a service interface.
+- [x] Use Pydantic schemas for request and structured model output.
+- [x] Persist `agent_run` records in PostgreSQL.
 
 Acceptance criteria:
 
-- [ ] A valid request produces schema-validated structured output.
-- [ ] Each request creates a durable agent-run record.
-- [ ] Configuration and API secrets come from environment variables.
-- [ ] Error responses do not expose secrets or raw internal exceptions.
+- [x] A valid request produces schema-validated structured output. Live OpenAI and PostgreSQL verification passed September 20, 2026; evidence is recorded in docs/CURRENT_STATUS.md.
+- [x] Each request creates a durable agent-run record.
+- [x] Configuration and API secrets come from environment variables.
+- [x] Error responses do not expose secrets or raw internal exceptions.
 
 Deliverable: a request produces validated structured output and a stored run record.
 
@@ -767,7 +767,7 @@ Status: Complete | Blocked
 
 ## Current status
 
-- Active day: Day 1
-- Overall status: Not Started
-- Completed days: 0 of 42
-- Current gate: Day 1 acceptance criteria must pass before Day 2 begins.
+- Active day: Day 2 (approved by user on September 19, 2026)
+- Overall status: Day 2 Complete - awaiting approval for Day 3
+- Completed days: 2 of 42
+- Current gate: Day 2 acceptance criteria passed. Day 3 may begin when approved; it has not started. See docs/CURRENT_STATUS.md for verification evidence.

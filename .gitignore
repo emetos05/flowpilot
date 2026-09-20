@@ -13,5 +13,7 @@ out/
 .uv-cache/
 .pnpm-store/
 .pytest_cache/
+.ruff_cache/
+pytest-cache-files-*/
 .DS_Store
 docs/ai-engineer-tracker.xlsx
