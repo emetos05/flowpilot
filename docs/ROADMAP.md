@@ -128,22 +128,22 @@ Deliverable: a request produces validated structured output and a stored run rec
 
 - Date: September 17, 2026
 - Time budget: 2 hours
-- Status: **Not Started**
+- Status: **Complete**
 - Priority: Critical
 
 Tasks:
 
-- [ ] Implement `get_customer`.
-- [ ] Implement `get_order`.
-- [ ] Implement `get_refund_policy`.
-- [ ] Allow the model to select tools rather than hard-coding intent branches.
-- [ ] Add unit tests for success, invalid input and missing records.
+- [x] Implement `get_customer`.
+- [x] Implement `get_order`.
+- [x] Implement `get_refund_policy`.
+- [x] Allow the model to select tools rather than hard-coding intent branches.
+- [x] Add unit tests for success, invalid input and missing records.
 
 Acceptance criteria:
 
-- [ ] All three tools use typed inputs and outputs.
-- [ ] The model can select the correct tool for representative requests.
-- [ ] Tool tests pass.
+- [x] All three tools use typed inputs and outputs.
+- [x] The model can select the correct tool for representative requests.
+- [x] Tool tests pass.
 
 Deliverable: three tested tools invoked through model tool selection.
 
@@ -767,7 +767,7 @@ Status: Complete | Blocked
 
 ## Current status
 
-- Active day: Day 2 (approved by user on September 19, 2026)
-- Overall status: Day 2 Complete - awaiting approval for Day 3
-- Completed days: 2 of 42
-- Current gate: Day 2 acceptance criteria passed. Day 3 may begin when approved; it has not started. See docs/CURRENT_STATUS.md for verification evidence.
+- Active day: Day 3 (approved by user on September 21, 2026)
+- Overall status: Day 3 Complete - awaiting approval for Day 4
+- Completed days: 3 of 42
+- Current gate: Day 3 acceptance criteria passed. Day 4 may begin when approved; it has not started. See docs/CURRENT_STATUS.md for verification evidence.

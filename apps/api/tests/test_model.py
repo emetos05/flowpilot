@@ -28,7 +28,13 @@ def test_sdk_parses_real_response_format(monkeypatch, mode):
         assert payload["text"]["format"]["type"] == "json_schema"
         assert payload["text"]["format"]["strict"] is True
         assert payload["store"] is False
-        assert "tools" not in payload
+        assert {tool["name"] for tool in payload["tools"]} == {
+            "get_customer",
+            "get_order",
+            "get_refund_policy",
+        }
+        assert payload["tool_choice"] == "auto"
+        assert payload["parallel_tool_calls"] is False
         return httpx.Response(
             200,
             json={

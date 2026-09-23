@@ -12,13 +12,30 @@ The pre-existing `/api/agent/run` echo endpoint is preserved for compatibility. 
 
 ## Day 2 scope
 
-`POST /agent/run` validates a request, commits a PostgreSQL `agent_runs` record, calls OpenAI through a service interface, validates structured output, and commits the result before returning success. Failed model calls are recorded with a safe error code. No tools, agent loop, authentication, or agent UI are implemented; those remain later roadmap work.
+`POST /agent/run` validates a request, commits a PostgreSQL `agent_runs` record, calls OpenAI through a service interface, validates structured output, and commits the result before returning success. Failed model calls are recorded with a safe error code.
+
+## Day 3 scope
+
+The model can now select and invoke `get_customer`, `get_order`, or `get_refund_policy`. Each tool has strict Pydantic inputs and typed outputs. A fixed registry validates the arguments and dispatches only registered names; there are no keyword-based intent branches.
+
+Business records are **synthetic demo fixtures**, kept separate from PostgreSQL run persistence. Customer `cus_001` is Maya Chen (standard tier); `cus_002` is Leo Rivera (premium tier). Order `ord_1001` belongs to `cus_001`, is delivered, and totals USD 74.99. Order `ord_1002` belongs to `cus_002`, is shipped, and totals USD 129.00. Both use policy `standard`: a 30-day return window with conditions and human approval. These are not real customer records or an eligibility decision.
+
+| Tool | Required input | Result |
+| --- | --- | --- |
+| `get_customer` | `customer_id`, format `cus_001` | Customer name and tier, or `not_found`. |
+| `get_order` | `order_id`, format `ord_1001` | Order status, total in integer cents, customer/policy IDs, or `not_found`. |
+| `get_refund_policy` | `policy_id`, a lowercase slug | Return window and conditions, or `not_found`; use `standard` for general policy questions. |
+
+Malformed or extra arguments return a safe `invalid_arguments` tool result; unregistered names return `unknown_tool` without executing anything. The model receives the typed result and produces the existing structured `AgentOutput`. Missing records do not become invented records. The final output continues to be persisted in `agent_runs`; separate tool-call audit tables remain later work.
+
+This is one optional lookup followed by a final response, not an iterative agent loop. The first request uses `tool_choice: auto` and disables parallel calls. If it selects a tool, its output and matching call ID are sent back in a second request with tools disabled. Requests that need several dependent lookups must suggest the remaining steps. There are at most two model calls, each using the configured timeout/token cap. The Day 4 loop, Day 5 business tables/migrations and agent UI, and later authentication/approvals are not implemented.
 
 ## Architecture
 
 ```text
 Browser -> Next.js :3000 -> FastAPI :8000 /health
 API caller -> FastAPI /agent/run -> OpenAI Responses API
+                               -> Read-only synthetic business tools
                                -> PostgreSQL agent_runs
 ```
 
@@ -39,6 +56,7 @@ apps/
     app/core/config.py   # Environment settings
     app/schemas.py       # Typed request, output, and responses
     app/services/        # Model interface and run orchestration
+    app/tools/           # Typed business fixtures and tool registry
     app/db.py            # PostgreSQL persistence and schema initialization
     app/schema.sql       # Day 2 agent_runs table only
     tests/               # Unit, PostgreSQL, and opt-in live tests
@@ -163,6 +181,8 @@ $body = @{ message = 'A customer asks about a refund, but we have no order detai
 Invoke-RestMethod http://127.0.0.1:8000/agent/run -Method Post -ContentType 'application/json' -Body $body
 ```
 
+To try model-selected lookups, use messages such as `Who is cus_001, and what service tier are they on?`, `Has ord_1001 arrived yet?`, or `How long is the standard return window, and what conditions apply?`. Tool selection follows the [Responses API function-calling protocol](https://developers.openai.com/api/docs/guides/function-calling). No additional environment variables or dependencies are required for Day 3.
+
 The 200 response contains `run_id`, `status: succeeded`, `created_at`, and `output`:
 
 ```json
@@ -192,10 +212,11 @@ uv run pytest -q
 # Include real PostgreSQL tests (use a development/test database):
 $env:TEST_DATABASE_URL = 'postgresql://flowpilot:flowpilot-local@127.0.0.1:5432/flowpilot'
 uv run pytest -q
-# Explicitly opt in to one billable OpenAI request, using apps/api/.env:
+# Explicitly opt in to live acceptance checks, using apps/api/.env:
+# Four cases: the original request plus three tool selections; at most eight model calls.
 $env:RUN_LIVE_OPENAI = '1'
 uv run pytest -q -s -m live
 Remove-Item Env:RUN_LIVE_OPENAI
 ```
 
-Default tests replace the model provider and do not spend API credits. The SDK contract test uses the real parser with a mocked HTTP transport. PostgreSQL tests use independent connections and delete only their own uniquely identified rows. The live test keeps its run as acceptance evidence. Integration/live checks are explicitly skipped when not enabled; skipped checks do not establish live acceptance. Current acceptance evidence and blockers are in [CURRENT_STATUS.md](docs/CURRENT_STATUS.md).
+Default tests replace the model provider and do not spend API credits. SDK contract tests use the real parser with a mocked HTTP transport and verify function-call/result correlation, argument validation, missing records, refusals, invalid output, and failure persistence. PostgreSQL tests use independent connections and delete only their own uniquely identified rows. Live tests observe the actual model-selected tool and arguments, check a returned fact, and verify the committed output through a separate database connection. They keep their runs as acceptance evidence. Integration/live checks are explicitly skipped when not enabled; skipped checks do not establish live acceptance. Current acceptance evidence and blockers are in [CURRENT_STATUS.md](docs/CURRENT_STATUS.md).

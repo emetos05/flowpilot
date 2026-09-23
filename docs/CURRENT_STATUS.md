@@ -1,90 +1,70 @@
 # Current status
 
-Updated: September 20, 2026.
+Updated: September 21, 2026.
 
-- Approved day: **Day 2 - Structured agent endpoint**.
-- Status: **Complete**. All Day 2 acceptance criteria pass, including live OpenAI output and durable PostgreSQL persistence.
-- Completed days: **Days 1 and 2**. Its previously stale roadmap checkboxes have been reconciled with the completed implementation and verification from September 16, plus current Docker/health regression checks.
-- Gate: **Day 2 passed**. Day 3 may begin when approved; it has not started.
+- Approved day: **Day 3 - Business tools**.
+- Status: **Complete**. Typed tools, model-selected execution, automated tests, and live acceptance checks pass.
+- Completed days: **Days 1, 2, and 3**.
+- Gate: **Day 3 passed**. Day 4 awaits approval and has not started.
 
-## Week 1 progress
+## Day 3 acceptance criteria
 
-- [x] Repository initialized
-- [x] FastAPI service
-- [x] Next.js frontend
-- [x] Frontend to API health communication
-- [x] OpenAI service interface and structured-output implementation
-- [x] PostgreSQL agent-run persistence
-- [x] Live OpenAI acceptance check (passed September 20, 2026)
-- [ ] Tool calling (Day 3; not started)
-
-## Day 2 acceptance criteria
-
-- [x] A valid request produces schema-validated structured output from live OpenAI. Live run `74c2d23b-e855-4b8e-9ae9-6351551d9cc1` returned HTTP 200 and its successful output was verified through a separate PostgreSQL connection.
-- [x] Each valid agent submission creates a durable agent-run record before the model call; successful outputs and provider failures are committed. Malformed requests are rejected before creating a run. A database outage rejects execution without calling the model.
-- [x] Configuration and API secrets come from environment variables or the ignored backend `.env`; settings represent credentials as secret values.
-- [x] Error responses do not expose secrets or raw internal exceptions. Validation, provider failure, timeout, missing configuration, invalid output, refusal, and storage errors are tested.
+- [x] `get_customer`, `get_order`, and `get_refund_policy` have strict typed inputs and typed found/not-found outputs.
+- [x] The live model selects the correct tool and arguments for three representative requests without a forced tool name.
+- [x] Tests cover successful lookups, invalid input, missing records, registry dispatch, and the provider function-calling protocol.
 
 ## Files changed
 
-- `apps/api/app/main.py`: `/agent/run`, dependency injection, typed responses, sanitized errors; preserved `/health` and the existing `/api/agent/run` echo route.
-- `apps/api/app/core/config.py`: environment-backed model and database settings.
-- `apps/api/app/schemas.py`, `app/errors.py`: input/output contracts and public error codes.
-- `apps/api/app/services/model.py`: model interface and OpenAI Responses/Pydantic adapter.
-- `apps/api/app/services/agent.py`: commit-before-call orchestration and final result persistence.
-- `apps/api/app/db.py`, `app/schema.sql`: parameterized PostgreSQL repository and repeatable Day 2 table initialization.
-- `apps/api/tests/`: API, provider SDK, configuration, PostgreSQL integration, and explicitly enabled live acceptance tests.
-- `apps/api/pyproject.toml`, `uv.lock`: OpenAI, psycopg, settings, pytest, and Ruff dependencies/configuration.
-- `apps/api/Dockerfile`, `.dockerignore`, root `docker-compose.yml`: PostgreSQL service with named volume, backend environment configuration, and schema initialization.
-- Root `.env.example`, `apps/api/.env.example`, `.gitignore`: configuration examples and generated-cache exclusions.
-- `README.md`, `docs/ROADMAP.md`, `docs/CURRENT_STATUS.md`: setup, endpoint contract, verification, decisions, and accurate day/gate status.
-- Local ignored `apps/api/.env`: now configured locally by the user; the key was checked without displaying it and remains outside source control.
+- `apps/api/app/tools/business.py`: immutable typed synthetic customer, order, and policy fixtures and three lookup methods.
+- `apps/api/app/tools/registry.py`: strict tool definitions, validated arguments, fixed-name dispatch, and safe error results.
+- `apps/api/app/services/model.py`: optional model-selected lookup, correlated tool result, and final structured response.
+- `apps/api/tests/test_business_tools.py`: lookup, input validation, missing-record, schema, and registry tests.
+- `apps/api/tests/test_tool_calling.py`: real SDK parser with mocked HTTP responses; tool execution, final response persistence, and failure cases.
+- `apps/api/tests/test_live_tools.py`: three opt-in live tool-selection checks with independent PostgreSQL verification.
+- `apps/api/tests/test_model.py`: existing provider contract updated to include available tools.
+- `README.md`, `docs/ROADMAP.md`, `docs/CURRENT_STATUS.md`: tool contracts, usage, scope, and completion evidence.
 
 ## Commands and verification
 
-Commands run from `apps/api` unless otherwise noted. Windows verification used `.venv/Scripts/python.exe -m ...` / `.venv/Scripts/ruff.exe` directly where sandbox cache permissions prevented `uv run`; the documented equivalents below use uv.
+Backend commands ran from `apps/api` using the existing virtual environment; Docker commands ran from the repository root. No dependencies or environment variables were added.
 
-- `uv add openai 'psycopg[binary]' pydantic-settings` and `uv add --dev pytest ruff`: installed dependencies and updated the lockfile.
-- `uv run python -m app.db`: initialized the real PostgreSQL table; repeated initialization also passed.
-- `uv run ruff check app tests` and `uv run ruff format --check app tests`: passed.
-- `uv run pytest -q -p no:cacheprovider` with `TEST_DATABASE_URL` configured: **36 passed, 1 skipped**. Only the explicitly gated live OpenAI test was skipped. One upstream Starlette/AnyIO deprecation warning remains; no test failures.
-- `uv run uvicorn app.main:app --host 127.0.0.1 --port 8002`: ran the local API and verified `/health`, request validation, and sanitized missing-key errors over HTTP.
-- `docker compose up -d db --wait` and `docker compose up --build -d --wait` (root): built and ran PostgreSQL, FastAPI, and Next.js; all health checks passed.
-- Next.js production build and TypeScript compilation passed inside Docker. `pnpm lint` and `pnpm exec tsc --noEmit` also passed from `apps/web`.
-- Direct API `/health` and frontend HTTP checks passed; rendered page contains `Backend is healthy` retrieved from FastAPI.
-- With no OpenAI key, a real HTTP `/agent/run` request returned 503 `model_not_configured` and committed failed run `9603c1a9-5668-4e48-b4f0-3a974dad3a47`.
-- `docker compose stop db`: a controlled database outage returned sanitized 503 `storage_unavailable` with no run ID; no model was called.
-- `docker compose up -d db --wait`: restored PostgreSQL; a new connection confirmed the committed run above survived restart.
-- PostgreSQL integration tests separately confirmed successful structured outputs and failed provider calls are visible through independent database connections.
-- Final Docker endpoint and frontend checks passed after rebuilding the final code. Docker services remain running on ports 3000 (web), 8000 (API), and 5432 (PostgreSQL). The temporary local API on port 8002 was stopped after verification.
+- `.venv/Scripts/ruff.exe check app tests --fix` and `.venv/Scripts/ruff.exe format app tests`: applied formatting; subsequent lint and format checks passed.
+- With `TEST_DATABASE_URL` pointing to local PostgreSQL, `.venv/Scripts/python.exe -m pytest -q -m 'not live' -p no:cacheprovider --tb=short`: **75 passed, 4 deselected**.
+- With `RUN_LIVE_OPENAI=1`, `.venv/Scripts/python.exe -m pytest -q -s -m live -p no:cacheprovider --tb=short`: the existing Day 2 live case and customer/order selections passed; the initial policy case failed because the model skipped its lookup. Clarified the tool description and instructions to require a lookup for return-policy questions without requiring customer/order IDs.
+- Final `.venv/Scripts/python.exe -m pytest -q -s tests/test_live_tools.py -p no:cacheprovider --tb=short`: **3 passed**. Each test observed the exact tool name and arguments, a found record, a relevant fact in the answer, and exact persisted output through a new database connection.
+- `docker compose up -d db --wait`: restored PostgreSQL.
+- `docker compose up --build -d --wait api web`: built and started the final implementation. PostgreSQL, API, and web health checks passed; the Next.js production build succeeded.
+- Direct HTTP `POST http://127.0.0.1:8000/agent/run` asking whether `ord_1001` arrived returned a successful structured answer stating delivered. An independent PostgreSQL connection verified the committed output and succeeded status.
+- Direct HTTP `/health` returned `{"status":"ok"}`; the running frontend at port 3000 displayed `Backend is healthy`.
+- `git diff --check`: passed.
+
+One upstream Starlette/AnyIO deprecation warning remains; no application test failures remain.
+
+## Live acceptance evidence
+
+| Check | Successful run ID |
+| --- | --- |
+| Customer lookup | `1a52cd0f-5e61-45b3-83fd-a75ccd38c1af` |
+| Order lookup | `1c6f73ac-9b72-4680-b9f0-cc97267d08c8` |
+| Refund-policy lookup | `e080b196-bc73-4663-bce7-bf30dbfb7464` |
+| Running Docker API order request | `9dfcbe22-a48b-4144-9f08-c558322e647d` |
+| Existing Day 2 live regression | `50d5ce23-ed14-48cb-b468-a96e62a99c32` |
+
+These runs remain stored as evidence. Representative live cases demonstrate current selection behavior; they are not an exhaustive model-quality evaluation.
 
 ## Decisions and tradeoffs
 
-- One model call per submission through a replaceable interface. No tools, loops, approvals, authentication, or agent UI were added.
-- Typed structured output includes a summary, suggested next steps, and a human-review flag. Recommendations do not execute actions.
-- Use direct psycopg and one small repeatable SQL schema for the Day 2 table. Full migration tooling and business tables remain Day 5 work.
-- Commit a `running` row before the provider call, then commit `succeeded` or `failed`. Do not hold a transaction open while waiting on OpenAI.
-- Refuse to report success if the final database write fails. A crash or final-write outage can leave a durable `running` row; crash recovery/idempotency are later work.
-- No fake production model mode. Automated tests substitute the provider; the running endpoint requires a real key for success.
-- Preserve the earlier echo endpoint unchanged; it is not the new `/agent/run` endpoint and does not persist runs.
+- Preserve the existing OpenAI Responses API service and structured `AgentOutput` contract. Selection uses `tool_choice: auto`, tool descriptions, and schemas; there are no intent keyword branches.
+- Allow at most one lookup and two provider calls. The final request disables tools. Multiple or repeated tool calls fail safely. The configured timeout and token cap apply per provider call, not to the entire run.
+- Use explicitly labelled synthetic, read-only fixtures for Day 3. Integer cents avoid floating-point money. Full business tables, migrations, and tool-call audit records remain Day 5 work.
+- Keep durable run persistence unchanged: commit before the model call, then commit final output or safe failure. Only final output is stored; no persistent tool trace is claimed.
+- Tool results are data, not instructions. Missing records and malformed arguments produce typed outcomes. No refunds or other business actions are executed.
+- Day 4 iterative orchestration, Day 5 agent UI, authentication, and approvals remain outside this implementation.
 
 ## Manual configuration and blockers
 
-None remaining for Day 2. The user configured the key and resolved billing. Credentials remain in the ignored backend `.env` and were not printed or committed. The Docker API was recreated to load current configuration.
+None for Day 3. Existing backend credentials and billing worked; credentials were not printed or committed. Docker services remain running at http://localhost:3000 (web), http://localhost:8000 (API), and localhost:5432 (PostgreSQL). Live checks consume API credits and require explicit opt-in.
 
-## Day 2 completion verification - September 20, 2026
+## Prior milestones
 
-- Started Docker Desktop and restored the Compose services after the first test encountered a stopped database; that attempt did not reach OpenAI.
-- Ran `docker desktop start` and `docker compose up -d --wait --force-recreate api web`; PostgreSQL, API, and web health checks passed.
-- With `RUN_LIVE_OPENAI=1`, ran `.venv/Scripts/python.exe -m pytest -q -s -m live -p no:cacheprovider --tb=short` outside the restricted network sandbox: **1 passed, 36 deselected**. The previously passing 36 non-live tests were not rerun because application code was unchanged.
-- Real OpenAI request through `POST /agent/run` produced a schema-validated response and committed run `74c2d23b-e855-4b8e-9ae9-6351551d9cc1`. A new PostgreSQL connection verified status `succeeded` and exact stored output equality.
-- Verified the running API `/health` and the frontend's backend-health display over HTTP.
-- One upstream Starlette/AnyIO deprecation warning remains; it does not fail the test.
-- Files changed in this completion step: `docs/CURRENT_STATUS.md` and `docs/ROADMAP.md`. Application code and architecture were unchanged. Day 3 was not started.
-
-## Prior live verification failure - September 19, 2026 (resolved)
-
-- Ran `.venv/Scripts/python.exe -m pytest -q -s -m live -p no:cacheprovider --tb=short` with `RUN_LIVE_OPENAI=1`, including a retry outside the network sandbox. The live test failed with sanitized API 502 `model_unavailable`.
-- Used the OpenAI Developers troubleshooting skill to diagnose the provider safely: HTTP 429 with quota/credit-exhaustion indicators, not transient rate-limit indicators. No plaintext credential or raw provider error was printed.
-- Verified failed run `57fb6715-2c77-4d96-affe-0de20edfb28f` is durably stored as `failed` / `model_unavailable`.
-- Application code was unchanged. Updated this status file and the roadmap to replace the missing-key blocker with the observed provider quota/credit blocker. Day 3 remains unstarted.
+Day 1 established and verified the Next.js/FastAPI monorepo and Docker health connection. Day 2 completed September 20, 2026 with 36 non-live tests and a real structured OpenAI response persisted in PostgreSQL (run `74c2d23b-e855-4b8e-9ae9-6351551d9cc1`). The earlier billing blocker was resolved by the user. Day 3 retains these contracts and verifies them through the expanded suite and running application.
