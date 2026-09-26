@@ -5,7 +5,7 @@ import psycopg
 import pytest
 
 from app.db import PostgresRunRepository
-from app.errors import AgentError, ErrorCode
+from app.errors import ERRORS, AgentError, ErrorCode
 from app.main import app, get_repository
 
 pytestmark = pytest.mark.integration
@@ -22,14 +22,24 @@ def postgres():
     return repository
 
 
-@pytest.mark.parametrize("failure", [False, True])
+@pytest.mark.parametrize(
+    "failure",
+    [
+        None,
+        ErrorCode.MODEL_TIMEOUT,
+        ErrorCode.AGENT_STEP_LIMIT,
+        ErrorCode.AGENT_TIMEOUT,
+        ErrorCode.INVALID_TOOL_CALL,
+        ErrorCode.TOOL_FAILED,
+    ],
+)
 def test_endpoint_commits_rows_visible_to_new_connections(api, postgres, failure):
     client, _, model = api
     app.dependency_overrides[get_repository] = lambda: postgres
     if failure:
-        model.error = AgentError(ErrorCode.MODEL_TIMEOUT)
+        model.error = AgentError(failure)
     response = client.post("/agent/run", json={"message": "Day 2 persistence test"})
-    assert response.status_code == (504 if failure else 200)
+    assert response.status_code == (ERRORS[failure][0] if failure else 200)
     body = response.json()
     run_id = UUID(body["error"]["run_id"] if failure else body["run_id"])
     try:
@@ -40,7 +50,7 @@ def test_endpoint_commits_rows_visible_to_new_connections(api, postgres, failure
             ).fetchone()
         assert row[0] == ("failed" if failure else "succeeded")
         assert row[1] == (None if failure else body["output"])
-        assert row[2] == ("model_timeout" if failure else None)
+        assert row[2] == (failure.value if failure else None)
         assert row[3] is not None
     finally:
         with psycopg.connect(postgres.dsn) as connection:

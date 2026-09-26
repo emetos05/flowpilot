@@ -25,13 +25,13 @@ class ToolRegistry:
                 GetCustomerInput,
                 business.get_customer,
                 "Read a synthetic demo customer profile by customer_id, e.g. cus_001. "
-                "Use only an ID supplied by the user. Returns found or not_found.",
+                "Use an ID supplied by the user or a previous tool result. Returns found or not_found.",
             ),
             "get_order": (
                 GetOrderInput,
                 business.get_order,
                 "Read a synthetic demo order's status, total, customer ID and policy ID "
-                "by order_id, e.g. ord_1001. Use only a supplied order ID. Returns found or not_found.",
+                "by order_id, e.g. ord_1001. Use an order ID supplied by the user or a previous tool result. Returns found or not_found.",
             ),
             "get_refund_policy": (
                 GetRefundPolicyInput,

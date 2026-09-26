@@ -56,6 +56,10 @@ def test_malformed_json_is_sanitized(api):
 @pytest.mark.parametrize(
     ("code", "status"),
     [
+        (ErrorCode.AGENT_TIMEOUT, 504),
+        (ErrorCode.AGENT_STEP_LIMIT, 502),
+        (ErrorCode.INVALID_TOOL_CALL, 502),
+        (ErrorCode.TOOL_FAILED, 502),
         (ErrorCode.MODEL_TIMEOUT, 504),
         (ErrorCode.MODEL_UNAVAILABLE, 502),
         (ErrorCode.MODEL_REFUSED, 422),

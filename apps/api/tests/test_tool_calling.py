@@ -83,8 +83,6 @@ def service_with_transport(monkeypatch, respond, registry=None):
         ("get_order", {"order_id": "ord_1001"}, "found"),
         ("get_refund_policy", {"policy_id": "standard"}, "found"),
         ("get_order", {"order_id": "ord_9999"}, "not_found"),
-        ("get_order", {"order_id": 123}, "invalid_arguments"),
-        ("issue_refund", {}, "unknown_tool"),
     ],
 )
 def test_sdk_tool_call_result_and_final_persistence(
@@ -102,7 +100,7 @@ def test_sdk_tool_call_result_and_final_persistence(
             assert payload["tool_choice"] == "auto"
             assert payload["parallel_tool_calls"] is False
             return httpx.Response(200, json=envelope([call(name, json.dumps(arguments))]))
-        assert payload["tool_choice"] == "none"
+        assert payload["tool_choice"] == "auto"
         replay = payload["input"][1]
         assert replay["type"] == "function_call"
         assert "parsed_arguments" not in replay

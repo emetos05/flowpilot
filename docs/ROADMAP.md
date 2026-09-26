@@ -151,20 +151,20 @@ Deliverable: three tested tools invoked through model tool selection.
 
 - Date: September 18, 2026
 - Time budget: 2 hours
-- Status: **Not Started**
+- Status: **Complete**
 - Priority: Critical
 
 Tasks:
 
-- [ ] Implement tool selection, execution, observation and next-decision stages.
-- [ ] Add explicit run state.
-- [ ] Add maximum-step, timeout and invalid-tool safeguards.
+- [x] Implement tool selection, execution, observation and next-decision stages.
+- [x] Add explicit run state.
+- [x] Add maximum-step, timeout and invalid-tool safeguards.
 
 Acceptance criteria:
 
-- [ ] State transitions are visible and testable.
-- [ ] The loop terminates successfully or with a controlled failure.
-- [ ] An agent cannot call tools indefinitely.
+- [x] State transitions are visible and testable.
+- [x] The loop terminates successfully or with a controlled failure.
+- [x] An agent cannot call tools indefinitely.
 
 Deliverable: a bounded agent loop with visible state transitions and safe termination.
 
@@ -767,7 +767,7 @@ Status: Complete | Blocked
 
 ## Current status
 
-- Active day: Day 3 (approved by user on September 21, 2026)
-- Overall status: Day 3 Complete - awaiting approval for Day 4
-- Completed days: 3 of 42
-- Current gate: Day 3 acceptance criteria passed. Day 4 may begin when approved; it has not started. See docs/CURRENT_STATUS.md for verification evidence.
+- Active day: Day 4 (approved by user on September 23, 2026)
+- Overall status: Day 4 Complete - awaiting approval for Day 5
+- Completed days: 4 of 42
+- Current gate: Day 4 acceptance criteria passed. Day 5 may begin when approved; it has not started. See docs/CURRENT_STATUS.md for verification evidence.

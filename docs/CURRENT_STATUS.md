@@ -1,11 +1,78 @@
 # Current status
 
-Updated: September 21, 2026.
+Updated: September 23, 2026.
 
-- Approved day: **Day 3 - Business tools**.
-- Status: **Complete**. Typed tools, model-selected execution, automated tests, and live acceptance checks pass.
-- Completed days: **Days 1, 2, and 3**.
-- Gate: **Day 3 passed**. Day 4 awaits approval and has not started.
+- Approved day: **Day 4 - Bounded agent loop**.
+- Status: **Complete**. All Day 4 acceptance criteria pass.
+- Completed days: **Days 1, 2, 3, and 4**.
+- Gate: **Day 4 passed**. Day 5 awaits approval and has not started.
+
+## Day 4 acceptance criteria
+
+- [x] Tool selection, execution, observation, and next-decision stages repeat with explicit request-local state.
+- [x] State transitions are visible in running Docker API logs and testable through immutable transition events.
+- [x] The loop ends with validated output or a sanitized, persisted failure.
+- [x] A configured decision cap prevents unlimited calls. Deadline checks and reduced provider timeouts stop further work and reject late results.
+
+## Day 4 files changed
+
+- `apps/api/app/services/model.py`: iterative model/tool conversation, deadline and decision limits, invalid-call checks, safe tool failures, and chained lookup instructions.
+- `apps/api/app/services/state.py` (new): execution state, allowed transitions, immutable observation events, and safe console logging.
+- `apps/api/app/core/config.py`, `apps/api/.env.example`: validated `AGENT_MAX_STEPS` and `AGENT_TIMEOUT_SECONDS` settings.
+- `apps/api/app/errors.py`: public step-limit, agent-timeout, invalid-tool, and tool-failure errors.
+- `apps/api/app/tools/registry.py`: tool descriptions permit IDs obtained from earlier observations.
+- `apps/api/tests/test_agent_loop.py` (new): chained history, exact step exhaustion, deadline behavior, invalid tools, exceptions, state transitions, and concurrent execution isolation.
+- `apps/api/tests/test_tool_calling.py`: update Day 3 expectations for iterative decisions; retain SDK protocol and malformed-response coverage.
+- `apps/api/tests/test_agent_api.py`, `apps/api/tests/test_postgres.py`: verify all new failures return safe HTTP errors and persist failed records.
+- `apps/api/tests/test_live_tools.py`: add real order-to-customer/policy chained acceptance check.
+- `README.md`, `docs/ROADMAP.md`, `docs/CURRENT_STATUS.md`: settings, operational behavior, limitations, and completion evidence.
+
+## Day 4 commands and verification
+
+Backend commands ran from `apps/api` using the existing virtual environment. No dependencies were added.
+
+- `.venv/Scripts/ruff.exe check app tests --fix` and `.venv/Scripts/ruff.exe format app tests`: formatting applied. Final `ruff check` and `ruff format --check` passed (20 files).
+- `docker compose up -d db --wait` (root): PostgreSQL started and became healthy. Docker access required execution outside the restricted sandbox.
+- With `TEST_DATABASE_URL` configured, `.venv/Scripts/python.exe -m pytest -q -m 'not live' -p no:cacheprovider --tb=short`: **98 passed, 5 deselected**. Includes independent-connection PostgreSQL success and failure checks.
+- With `RUN_LIVE_OPENAI=1`, `.venv/Scripts/python.exe -m pytest -q -s -m live -p no:cacheprovider --tb=short`: **5 passed, 98 deselected**. Existing structured-output and three single-tool checks pass; the chained case uses four decisions and three correct tools.
+- `docker compose up --build -d --wait api web` (root): API rebuilt; unchanged frontend production build reused its cache. All three services are healthy.
+- Python/httpx HTTP smoke check against the running Docker services: `/health` returned `{"status":"ok"}`, the web page displayed `Backend is healthy`, and a chained `POST /agent/run` returned HTTP 200 with customer, order, and policy facts. A separate PostgreSQL connection verified exact persisted output and succeeded status.
+- `docker compose logs api --tail 40` and `docker compose ps`: confirmed all execution stages followed by success at decision four, and healthy API/web/database containers.
+- `git diff --check`: passed.
+
+One upstream Starlette/AnyIO deprecation warning remains; no application failures remain.
+
+## Day 4 live evidence
+
+| Check | Successful persisted run ID |
+| --- | --- |
+| Existing structured output | `08d99ce5-c631-4959-9196-132d2462b578` |
+| Customer lookup | `e3a769d4-0992-4ecf-9ddb-25f14f6ef723` |
+| Order lookup | `5717f36c-667f-4455-b218-715a74066904` |
+| Refund-policy lookup | `b5d9db95-7bc8-44bd-bb6f-1dcfbea0c424` |
+| Chained order/customer/policy test | `a317782c-72e8-4833-9036-fc8dce7ada88` |
+| Running Docker HTTP chained request | `da31f9b0-deb0-4c55-8bbf-10279c2e094d` |
+
+The Docker request logged execution ID `d57407ed-1071-4264-8b2b-b205856b1e49` with three execute/observe cycles and a successful fourth decision. Execution IDs group in-memory loop events; database run IDs remain a separate identifier.
+
+## Day 4 decisions and limitations
+
+- Preserve the existing synchronous Responses API service, structured response contract, synthetic read-only tools, and durable PostgreSQL run lifecycle. Model-selected tools remain selected from descriptions and strict schemas, with no intent keyword branches.
+- Default maximum is six model decisions, including the final answer; at most five tools execute. A tool selected on the last decision fails before dispatch. Limits are configuration-validated (1-20 decisions).
+- The default 90-second deadline applies to orchestration, not database commits. Check monotonic time around provider/tool execution and cap each request timeout to the remaining budget. This is a cooperative deadline, not forced cancellation of synchronous code; transport operations can exceed a wall-clock budget before control returns. Late results are rejected. Current tools are immediate in-memory lookups; future blocking tools need cancellable execution.
+- Invalid tool names/arguments now terminate the loop safely; missing records remain valid observations. Reused call IDs, parallel calls, refusals, malformed model output, and exceptions cannot cause indefinite execution.
+- Request-local state avoids cross-request contamination. Logs contain only execution ID, phase, step, and safe error code; prompts, arguments, results, and credentials are excluded. Persistent tool traces and business tables remain Day 5 work.
+- State `succeeded` means the model produced validated output. The existing runner still requires a successful database commit before reporting HTTP success.
+
+## Manual configuration and blockers
+
+None for Day 4. Existing credentials and billing worked. Optional settings in `apps/api/.env` are `AGENT_MAX_STEPS=6` and `AGENT_TIMEOUT_SECONDS=90`; defaults apply without edits. Restart the API after configuration changes. Docker services remain running at http://localhost:3000 and http://localhost:8000, with PostgreSQL on localhost:5432. Day 5 has not started.
+
+---
+
+## Historical Day 3 completion report (September 21, 2026)
+
+The sections below record the prior milestone; Day 4 behavior and current verification above supersede Day 3's single-lookup limit.
 
 ## Day 3 acceptance criteria
 

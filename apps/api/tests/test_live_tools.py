@@ -47,7 +47,7 @@ class ObservedTools(ToolRegistry):
     ],
 )
 def test_live_model_selects_executes_and_persists(message, expected_tool, expected_arguments, fact):
-    """At most two billable calls per case; retain run records as acceptance evidence."""
+    """Billable calls are bounded by AGENT_MAX_STEPS; retain acceptance evidence."""
     settings = Settings()
     assert settings.database_url and settings.openai_api_key, "Configure database and OpenAI"
     repository = PostgresRunRepository(settings.database_url.get_secret_value())
@@ -73,6 +73,52 @@ def test_live_model_selects_executes_and_persists(message, expected_tool, expect
             ).fetchone()
         assert row == ("succeeded", result.output.model_dump())
         print(f"Verified {expected_tool}: run {result.run_id}")
+    finally:
+        app.dependency_overrides.pop(get_model_service, None)
+        get_settings.cache_clear()
+
+
+def test_live_chained_order_customer_policy():
+    settings = Settings()
+    assert settings.database_url and settings.openai_api_key, "Configure database and OpenAI"
+    repository = PostgresRunRepository(settings.database_url.get_secret_value())
+    repository.initialize()
+    registry = ObservedTools()
+    events = []
+    service = OpenAIModelService(settings, registry, observer=events.append)
+    get_settings.cache_clear()
+    app.dependency_overrides[get_model_service] = lambda: service
+    try:
+        with TestClient(app, raise_server_exceptions=False) as client:
+            response = client.post(
+                "/agent/run",
+                json={
+                    "message": (
+                        "For order ord_1001, find its status, the associated customer's name and tier, "
+                        "and the return window and conditions of the policy attached to that order. "
+                        "Summarize all of these demo facts; do not issue a refund."
+                    )
+                },
+            )
+        assert response.status_code == 200, response.text
+        result = AgentRunResponse.model_validate(response.json())
+        assert len(registry.calls) == 3
+        assert registry.calls[0][:2] == ("get_order", {"order_id": "ord_1001"})
+        assert {(name, tuple(arguments.items())) for name, arguments, _ in registry.calls[1:]} == {
+            ("get_customer", (("customer_id", "cus_001"),)),
+            ("get_refund_policy", (("policy_id", "standard"),)),
+        }
+        assert all(record.status == "found" for _, _, record in registry.calls)
+        text = result.output.model_dump_json().lower()
+        assert all(fact in text for fact in ("maya", "standard", "delivered", "30"))
+        assert events[-1].phase == "succeeded"
+        assert events[-1].step == 4
+        with repository.connect() as connection:
+            row = connection.execute(
+                "SELECT status, output FROM agent_runs WHERE id = %s", (result.run_id,)
+            ).fetchone()
+        assert row == ("succeeded", result.output.model_dump())
+        print(f"Verified chained order/customer/policy: run {result.run_id}; 4 decisions, 3 tools")
     finally:
         app.dependency_overrides.pop(get_model_service, None)
         get_settings.cache_clear()

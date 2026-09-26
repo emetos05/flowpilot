@@ -10,10 +10,18 @@ class ErrorCode(StrEnum):
     MODEL_REFUSED = "model_refused"
     INVALID_MODEL_OUTPUT = "invalid_model_output"
     STORAGE_UNAVAILABLE = "storage_unavailable"
+    AGENT_STEP_LIMIT = "agent_step_limit"
+    AGENT_TIMEOUT = "agent_timeout"
+    INVALID_TOOL_CALL = "invalid_tool_call"
+    TOOL_FAILED = "tool_failed"
     INTERNAL_ERROR = "internal_error"
 
 
 ERRORS = {
+    ErrorCode.AGENT_STEP_LIMIT: (502, "The agent reached its step limit."),
+    ErrorCode.AGENT_TIMEOUT: (504, "The agent exceeded its time budget."),
+    ErrorCode.INVALID_TOOL_CALL: (502, "The agent requested an invalid tool call."),
+    ErrorCode.TOOL_FAILED: (502, "The tool could not complete its lookup."),
     ErrorCode.INVALID_REQUEST: (422, "Request does not match the required schema."),
     ErrorCode.MODEL_NOT_CONFIGURED: (503, "The model service is not configured."),
     ErrorCode.MODEL_UNAVAILABLE: (502, "The model service is unavailable."),

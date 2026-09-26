@@ -26,9 +26,19 @@ Business records are **synthetic demo fixtures**, kept separate from PostgreSQL 
 | `get_order` | `order_id`, format `ord_1001` | Order status, total in integer cents, customer/policy IDs, or `not_found`. |
 | `get_refund_policy` | `policy_id`, a lowercase slug | Return window and conditions, or `not_found`; use `standard` for general policy questions. |
 
-Malformed or extra arguments return a safe `invalid_arguments` tool result; unregistered names return `unknown_tool` without executing anything. The model receives the typed result and produces the existing structured `AgentOutput`. Missing records do not become invented records. The final output continues to be persisted in `agent_runs`; separate tool-call audit tables remain later work.
+At the registry boundary, malformed or extra arguments return a safe `invalid_arguments` result and unregistered names return `unknown_tool` without executing a handler. The Day 4 loop treats these as terminal invalid-tool failures. For valid lookups, the model receives the typed result and produces the existing structured `AgentOutput`. Missing records do not become invented records. The final output continues to be persisted in `agent_runs`; separate tool-call audit tables remain later work.
 
-This is one optional lookup followed by a final response, not an iterative agent loop. The first request uses `tool_choice: auto` and disables parallel calls. If it selects a tool, its output and matching call ID are sent back in a second request with tools disabled. Requests that need several dependent lookups must suggest the remaining steps. There are at most two model calls, each using the configured timeout/token cap. The Day 4 loop, Day 5 business tables/migrations and agent UI, and later authentication/approvals are not implemented.
+## Day 4 scope
+
+The bounded loop now repeats model selection, tool execution, observation, and the next decision until it produces a valid structured answer or a controlled failure. It follows the [OpenAI function-calling protocol](https://developers.openai.com/api/docs/guides/function-calling), retaining previous calls and matching results in the conversation. Each decision uses `tool_choice: auto` and disables parallel calls. An order result can supply customer and policy IDs for later lookups.
+
+`AGENT_MAX_STEPS` defaults to six model decisions, including the final answer. At most five tools execute: a tool requested on the last decision fails with `agent_step_limit` before execution. Unknown names or invalid arguments stop with `invalid_tool_call`; tool exceptions stop with `tool_failed`. Multiple calls in a single response and reused call IDs are rejected. A missing record is a valid observation that the model can explain or use to request clarification.
+
+`AGENT_TIMEOUT_SECONDS` defaults to 90 seconds for model/tool orchestration. A monotonic deadline is checked before and after work, and each provider request gets the smaller of its configured timeout and remaining budget. Late results are rejected with `agent_timeout`. This is a cooperative deadline: synchronous code cannot be forcibly interrupted, and SDK network timeouts apply to transport operations rather than a hard wall-clock cancellation. Current tools are immediate in-memory lookups; blocking external tools would need cancellable execution. Database commits have their separate existing timeouts and are outside this budget. Provider retries remain disabled.
+
+Execution state is request-local: `ready -> selecting -> executing -> observing -> deciding -> selecting`, ending in `succeeded` or `failed`. A direct answer goes from `selecting` to `succeeded`. State transitions appear in `docker compose logs api` as `agent_transition` with an execution ID, decision number, and safe error code. The execution ID identifies this in-memory loop, separately from the persisted database run ID. Logs do not include prompts, tool arguments/results, or credentials. Tests can observe immutable transition events. Loop success means validated model output; the endpoint still returns success only after the database commit.
+
+No new dependencies, business tables, persistent tool traces, agent UI, or business mutations are added. Day 5 remains unstarted.
 
 ## Architecture
 
@@ -168,6 +178,8 @@ docker compose down
 | `OPENAI_API_KEY` | `apps/api/.env` | None | Backend-only OpenAI credential. |
 | `OPENAI_MODEL` | `apps/api/.env` | `gpt-4o-mini` | Model supporting the Responses API and structured output. |
 | `OPENAI_TIMEOUT_SECONDS` | `apps/api/.env` | `30` | Model request timeout, greater than 0 and at most 120. |
+| `AGENT_MAX_STEPS` | `apps/api/.env` | `6` | Maximum model decisions including the final answer, from 1 to 20. |
+| `AGENT_TIMEOUT_SECONDS` | `apps/api/.env` | `90` | Cooperative orchestration deadline, greater than 0 and at most 300 seconds. |
 | `OPENAI_MAX_OUTPUT_TOKENS` | `apps/api/.env` | `1000` | Response token cap, between 100 and 4096. |
 | `UVICORN_HOST` | Shell environment | `127.0.0.1` | Optional local API bind address. |
 | `UVICORN_PORT` | Shell environment | `8000` | Optional local API port. |
@@ -181,7 +193,7 @@ $body = @{ message = 'A customer asks about a refund, but we have no order detai
 Invoke-RestMethod http://127.0.0.1:8000/agent/run -Method Post -ContentType 'application/json' -Body $body
 ```
 
-To try model-selected lookups, use messages such as `Who is cus_001, and what service tier are they on?`, `Has ord_1001 arrived yet?`, or `How long is the standard return window, and what conditions apply?`. Tool selection follows the [Responses API function-calling protocol](https://developers.openai.com/api/docs/guides/function-calling). No additional environment variables or dependencies are required for Day 3.
+To try model-selected lookups, use messages such as `Who is cus_001, and what service tier are they on?`, `Has ord_1001 arrived yet?`, or `How long is the standard return window, and what conditions apply?`. Tool selection follows the [Responses API function-calling protocol](https://developers.openai.com/api/docs/guides/function-calling). For chained lookups, ask `For order ord_1001, find its status, its customer name and tier, and its policy return window.` Day 4 settings have defaults; no changes to your existing environment file are required.
 
 The 200 response contains `run_id`, `status: succeeded`, `created_at`, and `output`:
 
@@ -193,7 +205,7 @@ The 200 response contains `run_id`, `status: succeeded`, `created_at`, and `outp
 }
 ```
 
-The example output is illustrative; model wording varies. Messages must be nonblank UTF-8 text without null characters and at most 10,000 characters. Extra request fields are rejected. Errors return `{"error":{"code":"...","message":"...","run_id":"..."}}`; the ID is null if execution did not create a record. HTTP codes: 422 invalid request or refusal, 502 invalid output/provider error, 503 missing model configuration or storage unavailable, 504 model timeout, 500 unexpected failure. Raw model refusals, exception details, and credentials are not returned.
+The example output is illustrative; model wording varies. Messages must be nonblank UTF-8 text without null characters and at most 10,000 characters. Extra request fields are rejected. Errors return `{"error":{"code":"...","message":"...","run_id":"..."}}`; the ID is null if execution did not create a record. HTTP codes: 422 invalid request or refusal, 502 invalid output/provider/tool error or step limit, 503 missing model configuration or storage unavailable, 504 model or agent timeout, 500 unexpected failure. Raw model refusals, exception details, and credentials are not returned.
 
 Inspect stored run metadata:
 
@@ -213,10 +225,11 @@ uv run pytest -q
 $env:TEST_DATABASE_URL = 'postgresql://flowpilot:flowpilot-local@127.0.0.1:5432/flowpilot'
 uv run pytest -q
 # Explicitly opt in to live acceptance checks, using apps/api/.env:
-# Four cases: the original request plus three tool selections; at most eight model calls.
+# Five cases: original request, three tool selections, and a chained lookup.
+# At most 5 * AGENT_MAX_STEPS billable model calls (30 at defaults).
 $env:RUN_LIVE_OPENAI = '1'
 uv run pytest -q -s -m live
 Remove-Item Env:RUN_LIVE_OPENAI
 ```
 
-Default tests replace the model provider and do not spend API credits. SDK contract tests use the real parser with a mocked HTTP transport and verify function-call/result correlation, argument validation, missing records, refusals, invalid output, and failure persistence. PostgreSQL tests use independent connections and delete only their own uniquely identified rows. Live tests observe the actual model-selected tool and arguments, check a returned fact, and verify the committed output through a separate database connection. They keep their runs as acceptance evidence. Integration/live checks are explicitly skipped when not enabled; skipped checks do not establish live acceptance. Current acceptance evidence and blockers are in [CURRENT_STATUS.md](docs/CURRENT_STATUS.md).
+Default tests replace the model provider and do not spend API credits. SDK contract tests use the real parser with a mocked HTTP transport and verify function-call/result correlation, argument validation, missing records, refusals, invalid output, and failure persistence. Loop tests cover chained history, transitions, concurrent state isolation, step exhaustion, deadlines, invalid tools, and safe failures. PostgreSQL tests use independent connections and delete only their own uniquely identified rows. Live tests observe the actual model-selected tool and arguments, check a returned fact, and verify the committed output through a separate database connection. They keep their runs as acceptance evidence. Integration/live checks are explicitly skipped when not enabled; skipped checks do not establish live acceptance. Current acceptance evidence and blockers are in [CURRENT_STATUS.md](docs/CURRENT_STATUS.md).

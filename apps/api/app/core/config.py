@@ -17,3 +17,6 @@ class Settings(BaseSettings):
     openai_model: str = Field(default="gpt-4o-mini", min_length=1)
     openai_timeout_seconds: float = Field(default=30, gt=0, le=120)
     openai_max_output_tokens: int = Field(default=1000, ge=100, le=4096)
+
+    agent_max_steps: int = Field(default=6, ge=1, le=20)
+    agent_timeout_seconds: float = Field(default=90, gt=0, le=300)
